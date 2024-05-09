@@ -36,11 +36,13 @@ func TestLicenseFileSubdirectory(t *testing.T) {
 		name        string
 		inputFolder string
 		err         error
+		licenses    []clients.License
 		expected    scut.TestReturn
 	}{
 		{
-			name:        "With LICENSE",
+			name:        "With LICENSE File",
 			inputFolder: "testdata/licensedir/withlicense",
+			licenses:    nil,
 			expected: scut.TestReturn{
 				Error:        nil,
 				Score:        9, // Does not have approved format
@@ -52,12 +54,34 @@ func TestLicenseFileSubdirectory(t *testing.T) {
 		{
 			name:        "Without LICENSE",
 			inputFolder: "testdata/licensedir/withoutlicense",
+			licenses:    nil,
 			expected: scut.TestReturn{
 				Error:         nil,
 				Score:         checker.MinResultScore,
 				NumberOfWarn:  1,
 				NumberOfInfo:  0,
 				NumberOfDebug: 1,
+			},
+			err: nil,
+		},
+		{
+			name:        "With Git Mock LICENSE",
+			inputFolder: "testdata/licensedir/withlicense",
+			licenses: []clients.License{
+				{
+					Key:    "",
+					Name:   "Other",
+					Path:   "testdata/licensedir/withlicense/LICENSE",
+					SPDXId: "NOASSERTION",
+					Type:   "",
+					Size:   0,
+				},
+			},
+			expected: scut.TestReturn{
+				Error:        nil,
+				Score:        9,
+				NumberOfInfo: 1,
+				NumberOfWarn: 1,
 			},
 			err: nil,
 		},
@@ -89,8 +113,13 @@ func TestLicenseFileSubdirectory(t *testing.T) {
 			// Currently the check itself handles this error gracefully,
 			//     searching through the directory to find the license file(s)
 			//     if that functionality is ever changed, this mock needs to be updated accordingly
-			mockRepoClient.EXPECT().ListLicenses().Return(nil, fmt.Errorf("ListLicenses: %w", clients.ErrUnsupportedFeature)).AnyTimes()
-
+			// mockRepoClient.EXPECT().ListLicenses().Return(nil, fmt.Errorf("ListLicenses: %w", clients.ErrUnsupportedFeature)).AnyTimes()
+			mockRepoClient.EXPECT().ListLicenses().DoAndReturn(func() ([]clients.License, error) {
+				if tt.licenses == nil {
+					return nil, fmt.Errorf("ListLicenses: %w", clients.ErrUnsupportedFeature)
+				}
+				return tt.licenses, tt.err
+			})
 			ctx := context.Background()
 
 			dl := scut.TestDetailLogger{}
